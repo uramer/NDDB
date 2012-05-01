@@ -1,6 +1,4 @@
-(function (exports, JSUS) {
-    
-    /**
+	/**
      * 
      * NDDB provides a simple, lightweight, NO-SQL object database 
      * for node.js and the browser. It depends on JSUS.
@@ -68,7 +66,9 @@
      */
     
     // Expose constructors
+	var JSUS=require('JSUS').JSUS
     exports.NDDB = NDDB;
+	var fs=require('fs')
     
     // Stdout redirect
     NDDB.log = console.log;
@@ -84,18 +84,18 @@
         
         this.db = [];                    // The actual database
         this.D = {};                    // The n-dimensional container for comparator functions
+        this.nddb_pointer = 0;            // Pointer for iterating along all the elements
         this.tags = options.tags || {};    // Tags pointing to id in the databases
-        
-        this.options = options;
-        NDDB.log = options.log || NDDB.log;
-        this.D = options.D || this.D;
+		
+        this.options = options
+        NDDB.log = options.log || NDDB.log
+        this.D = options.D || this.D
+		this.file=options.file
         if ('undefined' !== typeof options.parentDB) {
             this.parentDB = options.parentDB;
         }    
-        this.nddb_pointer = options.nddb_pointer || 0; // Pointer for iterating along all the elements
-        this.auto_update_pointer = ('undefined' !== typeof options.auto_update_pointer) ?
-                                        options.auto_update_pointer
-                                    :    false;
+        this.nddb_pointer = options.nddb_pointer;
+        this.auto_update_pointer = ('undefined' !== typeof options.auto_update_pointer) ? options.auto_update_pointer : false;
         
         this.auto_sort =  ('undefined' !== typeof options.auto_sort) ? options.auto_sort
                                                                      : false;
@@ -110,17 +110,15 @@
     /**
      * Default function used for sorting
      * 
-     * Elements are sorted according to their internal id 
-     * (FIFO). 
+     * Elements are sorted according to their internal id,
      * 
      */
     NDDB.prototype.globalCompare = function(o1, o2) {
         if (!o1 && !o2) return 0;
-        if (!o2) return -1;  
-        if (!o1) return 1;
-        
-        if (o1.nddbid < o2.nddbid) return -1;
-        if (o1.nddbid > o2.nddbid) return 1;
+        if (!o1) return -1;
+        if (!o2) return 1;    
+        if (o1.nddbid < o2.nddbid) return 1;
+        if (o1.nddbid > o2.nddbid) return -1;
         return 0;
     };
 
@@ -233,10 +231,23 @@
      * of the database
      */
     NDDB.prototype.toString = function () {
-        var out = '';
-        for (var i=0; i< this.db.length; i++) {
-            out += this.db[i] + '\n'
-        }    
+		var objToStr=function(o) {
+			var s='{'
+			for(x in o) {
+				s+='"'+x+'": '
+				switch(typeof(o[x])) {
+					case 'object': s+=o[x].toString(); break;
+					case 'string': s+='"'+o[x].toString()+'"'; break;
+					default: s+=o[x].toString(); break;
+				}
+				s+=', '
+			}
+			s=s.replace(/, $/,'}')
+			return s
+		}
+        var out = '['+objToStr(this.db[0])
+        for (var i=1; i< this.db.length; i++) out += ', '+objToStr(this.db[i])
+		out+=']'
         return out;
     };    
         
@@ -286,6 +297,30 @@
             return 0;
         };    
     };
+	
+	NDDB.prototype.save=function(file,callback) {
+		file=file||this.file
+		fs.writeFile(file,this.toString(),'utf-8',function(e){
+			if(e) throw e
+			if(callback) callback()
+		})
+	}
+	
+	NDDB.prototype.load=function(file,sync,callback) {
+		file=file||this.file
+		if(typeof sync=='undefined') sync=true
+		if(sync) { 
+			var s=fs.readFileSync(file,'utf-8')
+			this.import(JSON.parse(s.toString()))
+		}
+		else {
+			fs.readFile(file,'utf-8',function(e,s) {
+				if(e) throw e
+				this.import(JSON.parse(s.toString()))
+				if(callback) callback();
+			})
+		}
+	}
     
     
     //////////////////////
@@ -1267,8 +1302,3 @@
         if (!tag) return false;
         return this.tags[tag];
     };
-    
-})(
-    'undefined' !== typeof module && 'undefined' !== typeof module.exports ? module.exports: window
-  , 'undefined' != typeof JSUS ? JSUS : module.parent.exports.JSUS
-);
